@@ -22,7 +22,7 @@ package fr.duminy.components.chain;
 
 /**
  *
- * @param <Context> The type of Context.
+ * @param <C> The type of context.
  */
-public interface Chain<Context> extends Command<Context> {
+public interface Chain<C> extends Command<C> {
 }

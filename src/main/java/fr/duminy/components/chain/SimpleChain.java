@@ -28,41 +28,36 @@ import java.util.logging.Logger;
 /**
  * Simple implementation of the chain of responsibility pattern.
  *
- * @param <Context> The type of Context.
+ * @param <C> The type of context.
+ * @param <T> The type of {@link Command}.
  */
-public class SimpleChain<Context, CMD extends Command<Context>> implements Chain<Context> {
-    private final List<? extends CMD> commands;
+public class SimpleChain<C, T extends Command<C>> implements Chain<C> {
+    private final List<? extends T> commands;
     private final CommandListener listener;
     private final ListenerErrorLogger listenerErrorLogger;
 
-    public SimpleChain(ListenerErrorLogger listenerErrorLogger, CMD... commands) {
+    public SimpleChain(ListenerErrorLogger listenerErrorLogger, T... commands) {
         this(listenerErrorLogger, null, commands);
     }
 
-    public SimpleChain(ListenerErrorLogger listenerErrorLogger, CommandListener listener, CMD... commands) {
+    public SimpleChain(ListenerErrorLogger listenerErrorLogger, CommandListener listener, T... commands) {
         this.commands = Arrays.asList(commands);
         this.listener = listener;
         this.listenerErrorLogger = (listenerErrorLogger == null) ? DefaultListenerErrorLogger.INSTANCE : listenerErrorLogger;
     }
 
     @Override
-    public void execute(Context context) throws Exception {
+    public void execute(C context) throws CommandException {
         executeCommands(commands, context);
     }
 
-    private void executeCommands(List<? extends CMD> commands, Context context) throws Exception {
+    private void executeCommands(List<? extends T> commands, C context) throws CommandException {
         if (commands == null) {
             return;
         }
 
-        for (CMD command : commands) {
-            if (listener != null) {
-                try {
-                    listener.commandStarted(command, context);
-                } catch (Exception errorInListener) {
-                    logError("commandStarted", command, context, errorInListener);
-                }
-            }
+        for (T command : commands) {
+            notifyCommandStarted(context, command);
 
             Exception errorInCommand = null;
             try {
@@ -72,13 +67,7 @@ public class SimpleChain<Context, CMD extends Command<Context>> implements Chain
                 errorInCommand = e;
                 throw e;
             } finally {
-                if (listener != null) {
-                    try {
-                        listener.commandFinished(command, context, errorInCommand);
-                    } catch (Exception errorInListener) {
-                        logError("commandFinished", command, context, errorInListener);
-                    }
-                }
+                notifyCommandFinished(context, command, errorInCommand);
                 if (errorInCommand != null) {
                     command.revert(context);
                 }
@@ -86,22 +75,43 @@ public class SimpleChain<Context, CMD extends Command<Context>> implements Chain
         }
     }
 
-    private void logError(String method, Command command, Context context, Exception errorInListener) {
+    private void notifyCommandStarted(C context, T command) {
+        if (listener != null) {
+            try {
+                listener.commandStarted(command, context);
+            } catch (Exception errorInListener) {
+                logError("commandStarted", command, context, errorInListener);
+            }
+        }
+    }
+
+    private void notifyCommandFinished(C context, T command, Exception errorInCommand) {
+        if (listener != null) {
+            try {
+                listener.commandFinished(command, context, errorInCommand);
+            } catch (Exception errorInListener) {
+                logError("commandFinished", command, context, errorInListener);
+            }
+        }
+    }
+
+    private void logError(String method, Command command, C context, Exception errorInListener) {
         listenerErrorLogger.logError(method, command, context, errorInListener);
     }
 
-    public interface ListenerErrorLogger<Context> {
-        void logError(String method, Command command, Context context, Exception errorInListener);
+    @FunctionalInterface
+    public interface ListenerErrorLogger<D> {
+        void logError(String method, Command command, D context, Exception errorInListener);
     }
 
-    static class DefaultListenerErrorLogger<Context> implements ListenerErrorLogger<Context> {
+    static class DefaultListenerErrorLogger<D> implements ListenerErrorLogger<D> {
         static final DefaultListenerErrorLogger INSTANCE = new DefaultListenerErrorLogger();
 
         private DefaultListenerErrorLogger() {
         }
 
         @Override
-        public void logError(String method, Command command, Context context, Exception errorInListener) {
+        public void logError(String method, Command command, D context, Exception errorInListener) {
             final Logger logger = Logger.getLogger(getClass().getName());
             if (logger.isLoggable(Level.SEVERE)) {
                 logger.log(Level.SEVERE, String.format("Error in %s(%s, %s)", method, command, context), errorInListener);

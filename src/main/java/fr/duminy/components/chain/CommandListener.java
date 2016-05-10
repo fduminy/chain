@@ -21,10 +21,10 @@
 package fr.duminy.components.chain;
 
 /**
- * @param <Context> The type of Context.
+ * @param <C> The type of context.
  */
-public interface CommandListener<Context> {
-    void commandStarted(Command command, Context context);
+public interface CommandListener<C> {
+    void commandStarted(Command command, C context);
 
-    void commandFinished(Command command, Context context, Exception error);
+    void commandFinished(Command command, C context, Exception error);
 }
